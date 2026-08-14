@@ -40,6 +40,7 @@ This repository includes a scheduled workflow at `.github/workflows/tarkov-disco
 - Prefers the latest commit on the default branch
 - Runs the notifier once and exits
 - Uses `DISCORD_WEBHOOK_URL` from GitHub Secrets
+- Persists `data/last_post.json` back to the repository after a successful notification
 
 To enable it:
 
@@ -48,6 +49,7 @@ To enable it:
 3. Add a secret named `DISCORD_WEBHOOK_URL`.
 4. Make sure Actions are enabled for the repository.
 5. Keep the repository public if you want standard GitHub-hosted runner usage to remain free under GitHub's public-repo policy.
+6. Ensure the workflow has `contents: write` permission so it can push the updated post state back to the repo.
 
 ## Configuration
 
