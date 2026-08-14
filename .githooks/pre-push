@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+# Block pushes from branches named after AI tools / agents.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/lib/check-no-ai-attribution.sh
+source "$ROOT/scripts/lib/check-no-ai-attribution.sh"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [[ "$local_ref" =~ refs/heads/ ]] || continue
+  branch="${local_ref#refs/heads/}"
+  check_no_ai_attribution "$branch" "branch name '$branch'"
+done
+
+exit 0

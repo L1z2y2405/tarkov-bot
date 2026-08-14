@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Prevent committing local AI editor config directories.
+
+set -euo pipefail
+
+BLOCKED_PATHS=(
+  '.cursor/'
+  '.claude/'
+  '.copilot/'
+  '.aider/'
+  '.continue/'
+)
+
+while IFS= read -r -d '' file; do
+  for blocked in "${BLOCKED_PATHS[@]}"; do
+    if [[ "$file" == "$blocked"* ]] || [[ "$file" == *"/$blocked"* ]]; then
+      echo "❌ Blocked: do not commit local AI agent config: $file" >&2
+      echo "   Paths like .cursor/ and .claude/ must stay local (.gitignore)." >&2
+      exit 1
+    fi
+  done
+done < <(git diff --cached --name-only -z)
+
+exit 0

@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+# Validates Conventional Commits + blocks AI/agent attribution in commit messages.
+
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/lib/check-no-ai-attribution.sh
+source "$ROOT/scripts/lib/check-no-ai-attribution.sh"
+
+COMMIT_MSG_FILE="${1:?usage: commit-msg <file>}"
+MSG="$(sed '/^#/d' "$COMMIT_MSG_FILE" | tr -d '\r')"
+
+if [[ -z "${MSG// }" ]]; then
+  exit 0
+fi
+
+check_no_ai_attribution "$MSG" "commit message"
+
+SUBJECT="${MSG%%$'\n'*}"
+
+if [[ "$SUBJECT" =~ ^Merge[[:space:]] ]] || [[ "$SUBJECT" =~ ^Revert[[:space:]] ]]; then
+  exit 0
+fi
+
+PATTERN='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore)(\([a-z0-9._/-]+\))?(!)?:[[:space:]].{1,72}$'
+
+if [[ ! "$SUBJECT" =~ $PATTERN ]]; then
+  cat >&2 <<'EOF'
+❌ Invalid commit message format.
+
+Use Conventional Commits:
+  <type>(<optional-scope>): <subject>
+
+Types: feat | fix | docs | style | refactor | perf | test | build | ci | chore
+
+Examples:
+  feat(dead-clicks): add checkout dashboard KPI cards
+  fix(mobile-crashes): handle empty RUM response pages
+  docs: update GitLab setup guide
+
+See CONTRIBUTING.md for full guidelines.
+EOF
+  exit 1
+fi
+
+exit 0

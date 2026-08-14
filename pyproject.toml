@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tarkov-discord-notifier"
+version = "0.1.0"
+description = "Monitor the Escape from Tarkov X account and notify Discord via webhook."
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "playwright>=1.49.0",
+]
+
+[tool.setuptools]
+py-modules = [
+    "app",
+    "config",
+    "discord_webhook",
+    "models",
+    "scheduler",
+    "storage",
+    "twitter",
+    "utils",
+]
