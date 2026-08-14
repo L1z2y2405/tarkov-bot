@@ -6,4 +6,3 @@ __pycache__/
 *.pyd
 *.log
 *.egg-info/
-data/last_post.json

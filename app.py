@@ -42,6 +42,7 @@ async def main() -> None:
     )
     if settings.run_once:
         await scheduler.check_once()
+        logger.info("Run once complete. Shutting down.")
         return
     await scheduler.run()
 
