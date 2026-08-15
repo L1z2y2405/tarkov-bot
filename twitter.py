@@ -284,7 +284,7 @@ class TwitterClient:
             ).strip()
             if not line:
                 continue
-            if line.endswith("h") and line[:-1].isdigit():
+            if re.fullmatch(r"\d+[hm]", line.lower()):
                 continue
             if re.fullmatch(r"[\d.,]+[KM]?", line):
                 continue
