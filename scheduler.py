@@ -27,6 +27,7 @@ class NotifierScheduler:
         self._check_interval_seconds = check_interval_seconds
         self._logger = logger
         self._repo_root = Path(__file__).resolve().parent
+        self._seen_post_ids: set[str] = set()
 
     async def run(self) -> None:
         while True:
@@ -35,13 +36,16 @@ class NotifierScheduler:
 
     async def check_once(self) -> None:
         state = self._storage.load()
+        if state.last_post_id:
+            self._seen_post_ids.add(state.last_post_id)
+
         try:
             post = await self._twitter_client.fetch_latest_post()
         except Exception as exc:  # noqa: BLE001
             self._logger.error("Failed to fetch latest post: %s", exc)
             return
 
-        if state.last_post_id == post.post_id:
+        if post.post_id in self._seen_post_ids:
             self._logger.info("No new post.")
             return
 
@@ -55,6 +59,7 @@ class NotifierScheduler:
                 3,
                 self._logger,
             )
+            self._seen_post_ids.add(post.post_id)
             self._storage.save(StoredState(last_post_id=post.post_id))
             self._logger.info("Updated last_post.json")
             await self._persist_state_to_git()
@@ -72,6 +77,10 @@ class NotifierScheduler:
         return (self._repo_root / ".git").exists()
 
     def _git_commit_and_push(self) -> None:
+        branch = self._current_branch()
+        if not branch:
+            raise RuntimeError("Unable to determine current git branch")
+
         status = subprocess.run(
             ["git", "status", "--porcelain", "--", "data/last_post.json"],
             cwd=self._repo_root,
@@ -102,7 +111,7 @@ class NotifierScheduler:
             raise RuntimeError(commit.stderr.strip() or "git commit failed")
 
         push = subprocess.run(
-            ["git", "push"],
+            ["git", "push", "origin", f"HEAD:{branch}"],
             cwd=self._repo_root,
             capture_output=True,
             text=True,
@@ -111,3 +120,19 @@ class NotifierScheduler:
         if push.returncode != 0:
             raise RuntimeError(push.stderr.strip() or "git push failed")
         self._logger.info("Persisted last_post.json to git")
+
+    def _current_branch(self) -> str | None:
+        branch = subprocess.run(
+            ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+            cwd=self._repo_root,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        if branch.returncode != 0:
+            return None
+
+        value = branch.stdout.strip()
+        if not value or value == "HEAD":
+            return None
+        return value
