@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import os
 import logging
 import subprocess
 from pathlib import Path
@@ -122,6 +123,14 @@ class NotifierScheduler:
         self._logger.info("Persisted last_post.json to git")
 
     def _current_branch(self) -> str | None:
+        github_ref_name = os.getenv("GITHUB_REF_NAME", "").strip()
+        if github_ref_name:
+            return github_ref_name
+
+        github_ref = os.getenv("GITHUB_REF", "").strip()
+        if github_ref.startswith("refs/heads/"):
+            return github_ref.removeprefix("refs/heads/")
+
         branch = subprocess.run(
             ["git", "rev-parse", "--abbrev-ref", "HEAD"],
             cwd=self._repo_root,
