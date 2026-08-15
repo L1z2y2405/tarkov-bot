@@ -49,6 +49,7 @@ jobs:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
           CHECK_INTERVAL_SECONDS: "300"
           TWITTER_USERNAME: "tarkov"
+          GITHUB_REF_NAME: ${{ github.ref_name }}
           HEADLESS: "true"
           RETRY_ATTEMPTS: "3"
           RUN_ONCE: "true"
