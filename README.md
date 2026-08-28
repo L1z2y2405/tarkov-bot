@@ -4,12 +4,12 @@ Polls the official Escape from Tarkov X account and forwards any new post to a D
 
 ## Features
 
-- Prefers the official X page first
-- Falls back to public mirror sources if X is blocked or changes markup
-- Persists the last processed post ID
-- Uses Playwright with Chromium headless
-- Sends Discord embeds
-- Fully modular and testable
+- Prefers the official X page first.
+- Falls back to public mirror sources if X is blocked or changes markup.
+- Persists the last processed post ID.
+- Uses Playwright with Chromium headless.
+- Sends Discord embeds.
+- Fully modular and testable.
 
 ## Requirements
 
