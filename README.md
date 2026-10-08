@@ -15,6 +15,7 @@ Polls the official Escape from Tarkov X account and forwards any new post to a D
 
 - Python 3.12+
 - `uv`
+- Node.js 18+ (only needed to deploy the Cloudflare cron Worker)
 
 ## Installation
 
@@ -102,6 +103,8 @@ Secret (Cloudflare only, never commit it):
 
 Rotate the PAT: revoke the old token on GitHub, create a new one, then run `npx wrangler secret put GITHUB_DISPATCH_TOKEN` again. Redeploy is not required after updating a secret.
 
+If a cron tick fails, check Worker logs. GitHub should return HTTP `204`. `401` / `403` usually means the PAT is wrong or expired; `404` usually means the owner, repo, or workflow filename is wrong.
+
 ## Configuration
 
 - `DISCORD_WEBHOOK_URL`: Discord webhook target
@@ -128,6 +131,12 @@ Rotate the PAT: revoke the old token on GitHub, create a new one, then run `npx 
 ## Architecture
 
 ```text
+Cloudflare Cron
+       │
+       v
+GitHub Actions workflow
+       │
+       v
 ┌──────────────┐
 │   app.py     │
 └──────┬───────┘
@@ -167,6 +176,7 @@ Rotate the PAT: revoke the old token on GitHub, create a new one, then run `npx 
 
 ## Notes
 
-- The official X page is always attempted first.
+- On GitHub Actions, the client prefers the public X mirror first, then falls back to Playwright.
+- Locally, the official X page is attempted first.
 - If scraping fails, the client falls back to public mirrors while preserving the same output format.
 - Duplicate notifications are prevented by comparing the latest post ID with the stored ID.
