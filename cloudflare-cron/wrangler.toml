@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2026-10-08"
 
 [triggers]
-crons = ["*/15 * * * *"]
+crons = ["0 * * * *"]
 
 [vars]
 GITHUB_OWNER = "L1z2y2405"

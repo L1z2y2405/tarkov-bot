@@ -35,12 +35,12 @@ python app.py
 
 ## Automation
 
-GitHub's own `schedule` cron is not used. A Cloudflare Worker in `cloudflare-cron/` fires every 15 minutes and calls `workflow_dispatch` on `.github/workflows/tarkov-discord-notifier.yml`.
+GitHub's own `schedule` cron is not used. A Cloudflare Worker in `cloudflare-cron/` fires every hour and calls `workflow_dispatch` on `.github/workflows/tarkov-discord-notifier.yml`.
 
 That avoids GitHub Actions scheduler delay (runs can otherwise sit in queue for hours). The workflow still does the crawl, Discord notify, and `data/last_post.json` commit.
 
 ```text
-Cloudflare Cron (*/15 * * * *)
+Cloudflare Cron (0 * * * *)
         │
         ▼
   workflow_dispatch
@@ -87,8 +87,8 @@ npx wrangler deploy
 
 `secret put` asks for a value: paste the PAT there. The argument is the secret **name** (`GITHUB_DISPATCH_TOKEN`), not the token itself.
 
-3. Confirm deploy output includes `schedule: */15 * * * *`.
-4. Check the Actions tab within 15 minutes for a `Tarkov Discord Notifier` run triggered by `workflow_dispatch`.
+3. Confirm deploy output includes `schedule: 0 * * * *`.
+4. Check the Actions tab within an hour for a `Tarkov Discord Notifier` run triggered by `workflow_dispatch`.
 
 Worker env (in `wrangler.toml`):
 
