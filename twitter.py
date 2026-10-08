@@ -11,6 +11,7 @@ from typing import Any
 from urllib import error, request
 
 from models import Post
+from utils import retry_async
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,10 +60,15 @@ class TwitterClient:
     async def fetch_latest_post(self) -> Post:
         last_error: Exception | None = None
         prefer_fallback = os.getenv("GITHUB_ACTIONS", "").strip().lower() == "true"
+        # Guest X pages are blocked from GitHub-hosted runners; Playwright
+        # just burns the job timeout after the public mirror already failed.
         sources = (
-            (self._fetch_latest_post_from_fallback, self._fetch_latest_post_via_browser)
+            (self._fetch_latest_post_from_fallback,)
             if prefer_fallback
-            else (self._fetch_latest_post_via_browser, self._fetch_latest_post_from_fallback)
+            else (
+                self._fetch_latest_post_via_browser,
+                self._fetch_latest_post_from_fallback,
+            )
         )
         for source in sources:
             try:
@@ -170,7 +176,7 @@ class TwitterClient:
         except Exception as exc:
             if await self._has_login_wall(page):
                 raise TwitterUnavailableError("X is showing a login wall") from exc
-            raise TwitterBrowserError("No posts found on X profile") from exc
+            raise TwitterUnavailableError("X timeline did not load for guests") from exc
 
     async def _has_login_wall(self, page: Any) -> bool:
         url = page.url or ""
@@ -180,7 +186,10 @@ class TwitterClient:
         wall_markers = [
             'text="Sign in to X"',
             'text="Log in to X"',
+            'text="Sign up"',
+            'text="Something went wrong"',
             '[data-testid="loginButton"]',
+            '[data-testid="signupButton"]',
             '[data-testid="ocfSignup"]',
         ]
         for selector in wall_markers:
@@ -191,11 +200,40 @@ class TwitterClient:
                 continue
         return False
 
+    def _fallback_status_urls(self) -> tuple[str, ...]:
+        username = self._username.lstrip("@")
+        urls = [
+            f"https://api.fxtwitter.com/2/profile/{username}/statuses?count=20",
+        ]
+        if username.lower() == "tarkov":
+            urls.append(
+                "https://api.fxtwitter.com/2/profile/id:759683995563094017/statuses?count=20"
+            )
+        return tuple(urls)
+
     async def _fetch_latest_post_from_fallback(self) -> Post:
         self._logger.info("Fetching latest post from public X mirror...")
-        username = self._username.lstrip("@")
-        url = f"https://api.fxtwitter.com/2/profile/{username}/statuses?count=20"
-        payload = await asyncio.to_thread(self._request_json, url)
+        return await retry_async(
+            self._fetch_latest_post_from_fallback_once,
+            self._retry_attempts,
+            self._logger,
+        )
+
+    async def _fetch_latest_post_from_fallback_once(self) -> Post:
+        last_error: Exception | None = None
+        for url in self._fallback_status_urls():
+            try:
+                payload = await asyncio.to_thread(self._request_json, url)
+                return self._parse_fallback_payload(payload)
+            except TwitterParseError:
+                raise
+            except Exception as exc:
+                last_error = exc
+                self._logger.warning("Fallback URL failed: %s (%s)", url, exc)
+        assert last_error is not None
+        raise last_error
+
+    def _parse_fallback_payload(self, payload: Any) -> Post:
         if not isinstance(payload, dict):
             raise TwitterParseError("Fallback response is not an object")
 
@@ -222,21 +260,31 @@ class TwitterClient:
             url,
             headers={
                 "Accept": "application/json",
-                "User-Agent": "tarkov-discord-notifier/0.1.0",
+                "User-Agent": self._browser_config.user_agent,
             },
             method="GET",
         )
         try:
             with request.urlopen(req, timeout=30) as response:
-                if response.status >= 400:
-                    raise TwitterBrowserError(f"Fallback HTTP {response.status}")
-                return json.loads(response.read().decode("utf-8"))
-        except TwitterBrowserError:
-            raise
+                payload = json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
+            raw = exc.read().decode("utf-8", errors="replace")
+            payload = None
+            if raw:
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    payload = None
+            if isinstance(payload, dict) and isinstance(payload.get("results"), list):
+                if payload["results"]:
+                    return payload
             raise TwitterBrowserError(f"Fallback HTTP {exc.code}") from exc
         except (error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:
             raise TwitterBrowserError(f"Fallback request failed: {exc}") from exc
+
+        if not isinstance(payload, dict):
+            raise TwitterBrowserError("Fallback response is not an object")
+        return payload
 
     def _parse_fallback_status(self, item: dict[str, Any]) -> Post:
         post_id = str(item.get("id") or "")
