@@ -32,24 +32,75 @@ Set `DISCORD_WEBHOOK_URL` in `.env` before running.
 python app.py
 ```
 
-## GitHub Actions Automation
+## Automation
 
-This repository includes a scheduled workflow at `.github/workflows/tarkov-discord-notifier.yml`.
+GitHub's own `schedule` cron is not used. A Cloudflare Worker in `cloudflare-cron/` fires every 15 minutes and calls `workflow_dispatch` on `.github/workflows/tarkov-discord-notifier.yml`.
 
-- Runs every 15 minutes
-- Prefers the latest commit on the default branch
+That avoids GitHub Actions scheduler delay (runs can otherwise sit in queue for hours). The workflow still does the crawl, Discord notify, and `data/last_post.json` commit.
+
+```text
+Cloudflare Cron (*/15 * * * *)
+        │
+        ▼
+  workflow_dispatch
+        │
+        ▼
+GitHub Actions (uv + Playwright)
+        │
+        ▼
+   Discord webhook
+```
+
+### GitHub Actions
+
+Workflow: `.github/workflows/tarkov-discord-notifier.yml`
+
+- Trigger: `workflow_dispatch` only (from Cloudflare, or Run workflow in the Actions tab)
+- Checks out the default branch
 - Runs the notifier once and exits
 - Uses `DISCORD_WEBHOOK_URL` from GitHub Secrets
 - Persists `data/last_post.json` back to the repository after a successful notification
 
-To enable it:
+Enable the workflow:
 
-1. Push the workflow file to GitHub.
-2. In your repository, go to `Settings` -> `Secrets and variables` -> `Actions`.
-3. Add a secret named `DISCORD_WEBHOOK_URL`.
-4. Make sure Actions are enabled for the repository.
-5. Keep the repository public if you want standard GitHub-hosted runner usage to remain free under GitHub's public-repo policy.
-6. Ensure the workflow has `contents: write` permission so it can push the updated post state back to the repo.
+1. Push this repository to GitHub.
+2. `Settings` → `Secrets and variables` → `Actions` → add `DISCORD_WEBHOOK_URL`.
+3. Enable Actions for the repository.
+4. Keep the repository public if you want standard GitHub-hosted runner usage to stay free under GitHub's public-repo policy.
+5. The workflow needs `contents: write` so it can push the updated post state.
+
+### Cloudflare Worker
+
+Source: `cloudflare-cron/`
+
+Needs Node.js 18+ (`npx wrangler`). One-time setup:
+
+1. Create a fine-grained GitHub PAT for this repo with **Actions: Read and write**.
+2. From `cloudflare-cron/`:
+
+```bash
+npx wrangler login
+npx wrangler secret put GITHUB_DISPATCH_TOKEN
+npx wrangler deploy
+```
+
+`secret put` asks for a value: paste the PAT there. The argument is the secret **name** (`GITHUB_DISPATCH_TOKEN`), not the token itself.
+
+3. Confirm deploy output includes `schedule: */15 * * * *`.
+4. Check the Actions tab within 15 minutes for a `Tarkov Discord Notifier` run triggered by `workflow_dispatch`.
+
+Worker env (in `wrangler.toml`):
+
+- `GITHUB_OWNER`: `L1z2y2405`
+- `GITHUB_REPO`: `tarkov-bot`
+- `GITHUB_WORKFLOW`: `tarkov-discord-notifier.yml`
+- `GITHUB_REF`: `main`
+
+Secret (Cloudflare only, never commit it):
+
+- `GITHUB_DISPATCH_TOKEN`: GitHub PAT used to call the workflow dispatch API
+
+Rotate the PAT: revoke the old token on GitHub, create a new one, then run `npx wrangler secret put GITHUB_DISPATCH_TOKEN` again. Redeploy is not required after updating a secret.
 
 ## Configuration
 
@@ -71,6 +122,8 @@ To enable it:
 - `scheduler.py`: polling loop and delivery orchestration
 - `utils.py`: shared retry helper
 - `data/last_post.json`: persisted processing state
+- `cloudflare-cron/`: Cloudflare Worker that dispatches the GitHub Actions workflow
+- `.github/workflows/tarkov-discord-notifier.yml`: one-shot notifier job
 
 ## Architecture
 

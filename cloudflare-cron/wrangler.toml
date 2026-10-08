@@ -1,0 +1,12 @@
+name = "tarkov-github-dispatcher"
+main = "src/index.ts"
+compatibility_date = "2026-10-08"
+
+[triggers]
+crons = ["*/15 * * * *"]
+
+[vars]
+GITHUB_OWNER = "L1z2y2405"
+GITHUB_REPO = "tarkov-bot"
+GITHUB_WORKFLOW = "tarkov-discord-notifier.yml"
+GITHUB_REF = "main"
